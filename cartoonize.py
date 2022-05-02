@@ -103,7 +103,7 @@ def pre_processing(image_path, style, expand_dim=True):
 
 
 def post_processing(transformed_image, style):
-    if not type(transformed_image) == np.ndarray:
+    if type(transformed_image) != np.ndarray:
         transformed_image = transformed_image.numpy()
     transformed_image = transformed_image[0]
     transformed_image = transformed_image[:, :, [2, 1, 0]]
@@ -152,7 +152,7 @@ def save_concatenated_image(image_paths, image_folder="comparison", num_columns=
     elif view == "grid":
         rows = np.split(array, num_columns)
         rows = [np.hstack(row) for row in rows]
-        images_comb = np.vstack([row for row in rows])
+        images_comb = np.vstack(list(rows))
     else:
         logger.debug(f"Wrong `comparison_view`: {args.comparison_view}")
 
@@ -174,7 +174,7 @@ def convert_gif_to_png(gif_path):
     gif_filename = gif_path.split(os.path.sep)[-1].replace(".gif", "")
     image = PIL.Image.open(gif_path)
     palette = image.getpalette()
-    png_paths = list()
+    png_paths = []
     i = 0
 
     png_dir = os.path.join(TEMPORARY_DIR, gif_filename)
@@ -182,8 +182,7 @@ def convert_gif_to_png(gif_path):
         logger.debug(f"Creating temporary folder: {png_dir} for storing intermediate result...")
         os.makedirs(png_dir)
 
-    prev_generated_png_paths = glob.glob(png_dir + '/*.png')
-    if prev_generated_png_paths:
+    if prev_generated_png_paths := glob.glob(f'{png_dir}/*.png'):
         return prev_generated_png_paths
 
     num_processed_frames = 0
@@ -222,7 +221,7 @@ def convert_gif_to_png(gif_path):
 
 
 def transform_png_images(image_paths, model, style, return_existing_result=False):
-    transformed_image_paths = list()
+    transformed_image_paths = []
     save_dir = os.path.join("/".join(image_paths[0].split(os.path.sep)[:-1]), style)
     logger.debug(f"Transforming {len(image_paths)} images and saving them to {save_dir}....")
 
@@ -256,7 +255,7 @@ def save_png_images_as_gif(image_paths, image_filename, style="comparison"):
     with imageio.get_writer(gif_path, mode='I') as writer:
         file_names = sorted(image_paths, key=lambda x: int(x.split('/')[-1].replace('.png', '')))
         logger.debug(f"Combining {len(file_names)} png images into {gif_path}...")
-        for i, filename in enumerate(file_names):
+        for filename in file_names:
             image = imageio.imread(filename)
             writer.append_data(image)
     return gif_path
@@ -290,10 +289,7 @@ def main():
     # decide what styles to used in this execution
     styles = STYLES if args.all_styles else args.styles
 
-    models = list()
-    for style in styles:
-        models.append(cartoongan.load_model(style))
-
+    models = [cartoongan.load_model(style) for style in styles]
     logger.info(f"Cartoonizing images using {', '.join(styles)} style...")
 
     image_paths = []
@@ -327,7 +323,7 @@ def main():
 
             save_dir = os.path.join(TEMPORARY_DIR, image_filename.replace(".gif", ""), "comparison")
 
-            combined_image_paths = list()
+            combined_image_paths = []
             for image_paths in rearrange_paths_list:
                 path = save_concatenated_image(image_paths, image_folder=save_dir)
                 combined_image_paths.append(path)
@@ -342,15 +338,16 @@ def main():
             for model, style in zip(models, styles):
                 input_image = pre_processing(image_path, style=style)
                 save_dir = os.path.join(args.output_dir, style)
-                return_existing_result = result_exist(image_path, style) and not args.overwrite
+                if (
+                    return_existing_result := result_exist(image_path, style)
+                    and not args.overwrite
+                ):
+                    transformed_image_path = save_transformed_image(None, image_filename, save_dir)
 
-                if not return_existing_result:
+                else:
                     transformed_image = model.predict(input_image, use_multiprocessing=True)
                     output_image = post_processing(transformed_image, style=style)
                     transformed_image_path = save_transformed_image(output_image, image_filename, save_dir)
-                else:
-                    transformed_image_path = save_transformed_image(None, image_filename, save_dir)
-
                 related_image_paths.append(transformed_image_path)
 
             if not args.skip_comparison:

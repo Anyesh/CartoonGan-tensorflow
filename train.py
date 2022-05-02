@@ -208,8 +208,7 @@ class Trainer:
             x = tf.image.random_crop(x, (sizes[0], sizes[1], 3))
             x = tf.image.random_flip_left_right(x)
         x = tf.image.resize(x, (crop_size, crop_size))
-        img = tf.cast(x, tf.float32) / 127.5 - 1
-        return img
+        return tf.cast(x, tf.float32) / 127.5 - 1
 
     def get_dataset(self, dataset_name, domain, _type, batch_size):
         files = glob(os.path.join(self.data_dir, dataset_name, f"{_type}{domain}", "*"))
@@ -291,15 +290,15 @@ class Trainer:
             # NOTE: self.*_lambdas are fixed
             if self.content_lambda != 0. or self.style_lambda != 0.:
                 vgg_generated_images = self.pass_to_vgg(generated_images)
-                if self.content_lambda != 0.:
-                    c_loss = self.content_lambda * self.content_loss(
-                        self.pass_to_vgg(source_images), vgg_generated_images)
-                    g_total_loss = g_total_loss + c_loss
-                if self.style_lambda != 0.:
-                    s_loss = self.style_lambda * self.style_loss(
-                        self.pass_to_vgg(target_images[:vgg_generated_images.shape[0]]),
-                        vgg_generated_images)
-                    g_total_loss = g_total_loss + s_loss
+            if self.content_lambda != 0.:
+                c_loss = self.content_lambda * self.content_loss(
+                    self.pass_to_vgg(source_images), vgg_generated_images)
+                g_total_loss = g_total_loss + c_loss
+            if self.style_lambda != 0.:
+                s_loss = self.style_lambda * self.style_loss(
+                    self.pass_to_vgg(target_images[:vgg_generated_images.shape[0]]),
+                    vgg_generated_images)
+                g_total_loss = g_total_loss + s_loss
 
         d_grads = d_tape.gradient(d_total_loss, discriminator.trainable_variables)
         g_grads = g_tape.gradient(g_total_loss, generator.trainable_variables)
@@ -352,7 +351,7 @@ class Trainer:
                 os.path.join(self.checkpoint_dir, "pretrain")))
             status.assert_consumed()
 
-            self.logger.info(f"Previous checkpoints has been restored.")
+            self.logger.info("Previous checkpoints has been restored.")
             trained_epochs = checkpoint.save_counter.numpy()
             epochs = self.pretrain_epochs - trained_epochs
             if epochs <= 0:

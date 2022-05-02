@@ -83,11 +83,7 @@ class InstanceNormalization(Layer):
 
         self.input_spec = tf.keras.layers.InputSpec(ndim=ndim)
 
-        if self.axis is None:
-            shape = (1,)
-        else:
-            shape = (input_shape[self.axis],)
-
+        shape = (1, ) if self.axis is None else (input_shape[self.axis], )
         if self.scale:
             self.gamma = self.add_weight(shape=shape,
                                          name='gamma',
@@ -108,7 +104,7 @@ class InstanceNormalization(Layer):
 
     def call(self, inputs, training=None):
         input_shape = tf.keras.backend.int_shape(inputs)
-        reduction_axes = list(range(0, len(input_shape)))
+        reduction_axes = list(range(len(input_shape)))
 
         if self.axis is not None:
             del reduction_axes[self.axis]
@@ -174,27 +170,25 @@ def conv_layer(style, name, filters, kernel_size, strides=(1, 1), bias=True):
     else:
         bias_initializer = "zeros"
 
-    layer = tf.keras.layers.Conv2D(
+    return tf.keras.layers.Conv2D(
         filters=filters,
         kernel_size=kernel_size,
         strides=strides,
         kernel_initializer=tf.keras.initializers.constant(init_weight),
-        bias_initializer=bias_initializer
+        bias_initializer=bias_initializer,
     )
-    return layer
 
 
 def instance_norm_layer(style, name, epsilon=1e-9):
     init_beta = np.load(f"{PRETRAINED_WEIGHT_DIR}/{style}/{name}.shift.npy")
     init_gamma = np.load(f"{PRETRAINED_WEIGHT_DIR}/{style}/{name}.scale.npy")
 
-    layer = InstanceNormalization(
+    return InstanceNormalization(
         axis=-1,
         epsilon=epsilon,
         beta_initializer=tf.keras.initializers.Constant(init_beta),
-        gamma_initializer=tf.keras.initializers.Constant(init_gamma)
+        gamma_initializer=tf.keras.initializers.Constant(init_gamma),
     )
-    return layer
 
 
 def deconv_layers(style, name, filters, kernel_size, strides=(1, 1)):
@@ -202,14 +196,15 @@ def deconv_layers(style, name, filters, kernel_size, strides=(1, 1)):
     init_weight = np.transpose(init_weight, [2, 3, 1, 0])
     init_bias = np.load(f"{PRETRAINED_WEIGHT_DIR}/{style}/{name}.bias.npy")
 
-    layers = list()
-    layers.append(tf.keras.layers.Conv2DTranspose(
-        filters=filters,
-        kernel_size=kernel_size,
-        strides=strides,
-        kernel_initializer=tf.keras.initializers.constant(init_weight),
-        bias_initializer=tf.keras.initializers.constant(init_bias)
-    ))
+    layers = [
+        tf.keras.layers.Conv2DTranspose(
+            filters=filters,
+            kernel_size=kernel_size,
+            strides=strides,
+            kernel_initializer=tf.keras.initializers.constant(init_weight),
+            bias_initializer=tf.keras.initializers.constant(init_bias),
+        )
+    ]
 
     layers.append(tf.keras.layers.Cropping2D(cropping=((1, 0), (1, 0))))
     return layers
@@ -282,9 +277,7 @@ def load_model(style):
     y = conv_layer(style, "deconv03_1", filters=3, kernel_size=7)(y)
     y = tf.keras.layers.Activation("tanh")(y)
 
-    model = tf.keras.Model(inputs=inputs, outputs=y)
-
-    return model
+    return tf.keras.Model(inputs=inputs, outputs=y)
 
 
 if __name__ == '__main__':
